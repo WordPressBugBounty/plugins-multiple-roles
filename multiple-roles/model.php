@@ -73,12 +73,19 @@ class MDMR_Model {
 
 		$user = get_user_by( 'id', (int) $user_id );
 
+		if ( ! $user ) {
+			return false;
+		}
+
 		// Remove all editable roles
 		$editable       = get_editable_roles();
 		$editable_roles = is_array( $editable ) ? array_keys( $editable ) : array();
 		foreach ( $editable_roles as $role ) {
 			$user->remove_role( $role );
 		}
+
+		// Only add back roles the current user is actually allowed to grant.
+		$roles = array_intersect( $roles, $editable_roles );
 
 		foreach ( $roles as $role ) {
 			$user->add_role( $role );

@@ -7,6 +7,11 @@ class MDMR_Checklist_Controller {
 
 
 	/**
+	 * The nonce action used to protect role changes.
+	 */
+	const NONCE_ACTION = 'update-md-multiple-roles';
+
+	/**
 	 * The model object.
 	 *
 	 * @var \MDMR_Model $model
@@ -41,14 +46,18 @@ class MDMR_Checklist_Controller {
 	}
 
 	/**
-	 * Check if the md_multiple_roles_nonce is set and valid for the given action.
+	 * Check if the md_multiple_roles_nonce is set and valid.
 	 *
-	 * @param string $action The nonce action.
 	 * @return bool
 	 */
-	public function is_nonce_valid( $action ) {
-		return isset( $_POST['md_multiple_roles_nonce'] )
-		&& wp_verify_nonce( $_POST['md_multiple_roles_nonce'], 'update-md-multiple-roles' );
+	public function is_nonce_valid() {
+		if ( ! isset( $_POST['md_multiple_roles_nonce'] ) ) {
+			return false;
+		}
+
+		$nonce = sanitize_text_field( wp_unslash( $_POST['md_multiple_roles_nonce'] ) );
+
+		return (bool) wp_verify_nonce( $nonce, self::NONCE_ACTION );
 	}
 
 	/**
@@ -74,7 +83,7 @@ class MDMR_Checklist_Controller {
 			return;
 		}
 
-		wp_nonce_field( 'update-md-multiple-roles', 'md_multiple_roles_nonce' );
+		wp_nonce_field( self::NONCE_ACTION, 'md_multiple_roles_nonce' );
 
 		$roles          = $this->model->get_editable_roles();
 		$user_roles     = ( isset( $user->roles ) ) ? $user->roles : null;
@@ -91,11 +100,11 @@ class MDMR_Checklist_Controller {
 		$editable_roles = $this->model->get_editable_roles();
 		$ret            = array();
 		foreach ( $roles as $role ) {
-			if ( in_array( $role, $editable_roles ) ) {
+			if ( array_key_exists( $role, $editable_roles ) ) {
 				$ret[] = $role;
 			}
 		}
-		return $roles;
+		return $ret;
 	}
 
 	/**
@@ -110,7 +119,7 @@ class MDMR_Checklist_Controller {
 		// First check that the 'md_multiple_roles_nonce' is available, else bail. If we continue to process and update_roles(), all user roles will be lost.
 		// We check for 'md_multiple_roles_nonce' rather than 'md_multiple_roles' as this input/variable will be empty if all role inputs are left unchecked.
 
-		if ( ! $this->is_nonce_valid( 'update-md-multiple-roles' ) ) {
+		if ( ! $this->is_nonce_valid() ) {
 			return;
 		}
 
@@ -136,7 +145,7 @@ class MDMR_Checklist_Controller {
 	 * @return void|WP_Error
 	 */
 	public function mu_add_roles_in_signup_meta( $user, $user_email, $key, $meta ) {
-		if ( ! $this->is_nonce_valid( 'update-md-multiple-roles' ) ) {
+		if ( ! $this->is_nonce_valid() ) {
 			return;
 		}
 
@@ -193,17 +202,17 @@ class MDMR_Checklist_Controller {
 	 * @param $key
 	 */
 	public function mu_add_roles_in_signup_meta_recently( $meta, $domain, $path, $title, $user, $user_email, $key ) {
-		if ( ! $this->is_nonce_valid( 'update-md-multiple-roles' ) ) {
-			return;
+		if ( ! $this->is_nonce_valid() ) {
+			return $meta;
 		}
 
 		if ( ! $this->model->can_update_roles() ) {
-			return;
+			return $meta;
 		}
 
 		$new_roles = $this->get_validated_roles_from_post();
 		if ( empty( $new_roles ) ) {
-			return;
+			return $meta;
 		}
 
 		$meta['md_roles'] = $new_roles;
